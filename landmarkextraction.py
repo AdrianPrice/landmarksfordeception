@@ -5,9 +5,18 @@ import tarfile
 import pandas as pd
 
 class ExtractLandmarks():
+    '''
+    self.counter - total number of goals
+    self.domainfile - location of the domain file
+    self.goals - list of goals
+    self.landmarks - list of landmarks generated from goals
+    self.template - template of task pddl file
+    '''
     def __init__(self, *args):
-        self.counter = 1
-        self.landmarks = {}
+        '''
+        Constructs landmarks out of given domain file, goals list and task template pddl.
+        '''
+        self.landmarks = []
         if len(args) == 1:
             self.__unpackTar(*args)
         elif len(args) == 3:
@@ -16,18 +25,22 @@ class ExtractLandmarks():
             raise TypeError("Incorrect number of arguments.")
 
     def __unpackFiles(self, domaindir, goalsdir, templatedir):
-        # Domain file
+        '''
+        Loads the necessary resources into class variables. This function is called when
+        three arguments are given.
+        '''
         self.domainfile = os.path.abspath(domaindir)
-        # Get the goals from the goal file
         with open(goalsdir) as goalsfile:
             self.goals = goalsfile.read().splitlines()
-        # Get the task template from the template file
         with open(templatedir) as templatefile:
             self.template = templatefile.read()
         self.__populate()
 
     def __unpackTar(self, tardir):
-        # Unpacking TAR files
+        '''
+        Loads the necessary resources into class variables. This function is called when
+        one argument is given.
+        '''
         with tarfile.open(tardir, 'r:bz2') as tar:
             tar.extract('domain.pddl', path="temp")
             self.domainfile = os.path.abspath('temp/domain.pddl')
@@ -36,39 +49,47 @@ class ExtractLandmarks():
         self.__populate()
 
     def __populate(self):
-        # Iterate through each goal and generate a new task file for each
-        for goal in self.goals:
-            fname = f"task{self.counter}"
-            task = self.template.replace("<HYPOTHESIS>", goal)
-            with open(f"temp/{fname}.pddl", "w") as create:
+        '''
+        Creates task files for each goal using the template, 
+        and uses these task files to extract landmarks.
+        '''
+        for i in range(len(self.goals)):
+            dirname = f"temp/task{i}.pddl"
+            task = self.template.replace("<HYPOTHESIS>", self.goals[i])
+            with open(dirname, "w") as create:
                 create.write(task)
-            landmarks = self.__extract(f"temp/{fname}.pddl")
-            self.landmarks[fname] = landmarks
-            self.counter += 1
+            parsed = _parse(self.domainfile, dirname)
+            task = _ground(parsed)
+            landmarks = get_landmarks(task)
+            self.landmarks.append(landmarks)
 
-    def __extract(self, fname):
-        # Extract landmarks given the filename
-        parsed = _parse(self.domainfile, fname)
-        task = _ground(parsed)
-        landmarks = get_landmarks(task)
-        return landmarks 
+    def getLandmark(self, landmark = None):
+        '''
+        Returns a specific landmark, or returns all landmarks depending 
+        on whether an argument is given.
+        '''
+        return self.landmarks if landmark is None else self.landmarks[landmark]
 
-    def __getitem__(self, fname):
-        # Returns the landmarks of the given task.
-        try:
-            return self.landmarks[fname]
-        except:
-            return None
-
-    def intersection(self):
-        # Returns the landmark intersection of all goals.
-        return set.intersection(*list(self.landmarks.values()))
+    def getGoal(self, goal = None):
+        '''
+        Returns a specific goal, or returns all goals depending 
+        on whether an argument is given.
+        '''
+        return self.goals if goal is None else self.goals[goal] 
 
     def table(self):
         # Return a table of the landmark intersection for each pair of goals.
-        data = [[set.intersection(valueb, valuea) for keyb, valueb in self.landmarks.items()] for keya, valuea in self.landmarks.items()]
+        data = [[a.intersection(b) for a in self.landmarks] for b in self.landmarks]
         return pd.DataFrame(data)
 
+    def intersection(self, *args):
+        '''
+        '''
+        return set.intersection(*[self.landmarks[i] for i in args] if len(args) else self.landmarks)
+
+    def path(self, state, landmark):
+        pass
+    
 if __name__ == "__main__":
     # Defining constants
     EXPERIMENTS_DIR = 'experiments/raw'
@@ -83,7 +104,7 @@ if __name__ == "__main__":
             hypsdir = f"{EXPERIMENTS_DIR}/{dname}/hyps.dat"
             templatedir = f"{EXPERIMENTS_DIR}/{dname}/template.pddl"
             extraction = ExtractLandmarks(domaindir, hypsdir, templatedir)
-            print(extraction.table())
+            print(extraction.intersection(1,2,3,0))
 
     # For TAR files
     '''
