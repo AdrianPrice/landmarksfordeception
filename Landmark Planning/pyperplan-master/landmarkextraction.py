@@ -125,7 +125,7 @@ class ExtractLandmarks():
             for op in path:
                 steps += 1
                 print(f"Current State: {task.initial_state}")
-                print(f"Applying step {steps}: {op.name}")
+                print(f"Applying step {steps}: {op}")
                 task.initial_state = op.apply(task.initial_state)
             assert task.initial_state == actual # Making sure the final state is correct
             return (task, steps)
