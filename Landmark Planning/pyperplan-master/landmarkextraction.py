@@ -111,7 +111,7 @@ class ExtractLandmarks():
         ''' Trying something new
         '''
         initialTask = _ground(_parse(self.domainfile, self.temp("task0.pddl")))
-        optimal_plans = self.generate_optimal()
+        #optimal_plans = self.generate_optimal()
         def toLandmark(acc, landmark):
             ''' Given a task and a landmark, calculate the number of steps to achieve this landmark
             and calculate the end state after traversing the path.
@@ -132,8 +132,8 @@ class ExtractLandmarks():
                 task.initial_state = op.apply(task.initial_state)
             assert task.initial_state == actual  # Making sure the final state is correct
 
-            print(f"Distance from goal {1}: {cost_dif(initialTask, 1, task)}")
-            print(f"Distance from goal {3}: {cost_dif(initialTask, 3, task)}")
+            #print(f"Distance from goal {1}: {cost_dif(initialTask, 1, task)}")
+            #print(f"Distance from goal {3}: {cost_dif(initialTask, 3, task)}")
             return (task, steps)
 
         landmarkIntersection =  [i.intersection(self.landmarks[self.realgoal]) for i in self.landmarks]
