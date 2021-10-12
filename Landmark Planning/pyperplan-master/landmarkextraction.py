@@ -2,7 +2,9 @@ import functools
 from pyperplan.planner import _parse, _ground
 from pyperplan.search.a_star import astar_search
 from pyperplan.heuristics.landmarks import *
+from pyperplan.heuristics.lm_cut import LmCutHeuristic
 from src.pyperplan.search.a_star import astar_search as astar_search_custom
+from copy import deepcopy
 from pyperplan.heuristics.blind import *
 import os
 
@@ -102,32 +104,36 @@ class ExtractLandmarks():
         ''' Finds the intersections of landmarks between given goals
         '''
         result = set.intersection(*[self.landmarks[i] for i in args] if len(args) else self.landmarks)
-        self.__output(f"Finding intersection of landmarks between goals: {*args,}", result = result)
+        self.__output(f"Finding intersection of landmarks between goals: {*args,}", result=result)
         return result
     
     def reducing(self):
         ''' Trying something new
         '''
         initialTask = _ground(_parse(self.domainfile, self.temp("task0.pddl")))
-
+        optimal_plans = self.generate_optimal()
         def toLandmark(acc, landmark):
             ''' Given a task and a landmark, calculate the number of steps to achieve this landmark
             and calculate the end state after traversing the path.
             '''
+
             task, steps = acc
             self.__output(f"\n# Finding path to {landmark}")
 
             task.goals = frozenset({landmark})
             heuristic = LandmarkHeuristic(task)
-            actual = astar_search_custom(task, heuristic, return_state=True) # Patrick's editted code
-            path = astar_search(task, heuristic) # Generate a path
+            actual = astar_search_custom(task, heuristic, return_state=True)  # Patrick's edited code
+            path = astar_search(task, heuristic)  # Generate a path
             # Applying these ops to the state
             for op in path:
                 steps += 1
                 print(f"Current State: {task.initial_state}")
                 print(f"Applying step {steps}: {op}")
                 task.initial_state = op.apply(task.initial_state)
-            assert task.initial_state == actual # Making sure the final state is correct
+            assert task.initial_state == actual  # Making sure the final state is correct
+
+            print(f"Distance from goal {1}: {cost_dif(initialTask, 1, task)}")
+            print(f"Distance from goal {3}: {cost_dif(initialTask, 3, task)}")
             return (task, steps)
 
         landmarkIntersection =  [i.intersection(self.landmarks[self.realgoal]) for i in self.landmarks]
@@ -137,12 +143,40 @@ class ExtractLandmarks():
             *[f"{i}: {a} " if i != self.realgoal else "" for i, a in enumerate(landmarkIntersection)])
 
         # How do I use these to find a deceptive path??
-        # Attempt: the more landmarks there are in common, the more similiar the goals are?
+        # Attempt: the more landmarks there are in common, the more similar the goals are?
         landmarkSet = max(landmarkIntersection, key=len) # Result has a list of landmarks
         self.__output(
             "# The intersection with the largest number of landmarks",
             *[f"{i}: {a} " for i, a in enumerate(landmarkSet)])
         # TODO: Find a way to order landmarks to reduce path length / cost
+
+
+
+        def cost_dif(goal, state_task):
+            '''
+            Calculates the cost difference at any state from a goal. Defined in Masters work, means that the difference
+            between state and goal can be calculated without relying on previous observations. Formula used is
+            costdif(s, g, n) = optc(n, g) - optc(s, g) where optc(state, goal) is the cost of the optimal path from
+            state to goal, s = start state, g = goal, n = current state
+
+            @param goal:  Integer specifying goal from self.goals list
+            @param state_task: Task instance for current state
+            @return: integer representation of difference in length between path to state and path to goal.
+            '''
+            goal_string = self.goals[goal]
+            if len(goal_string.split('(')) >= 2:
+                goals = goal_string.split('(')
+                goals = goals[2:]
+                goals = ["(" + g[:-1] for g in goals]
+                goal_set = frozenset(goals)
+            else:
+                goal_set = frozenset({goal_string})
+
+            state_task.goals = goal_set
+            heuristic = LmCutHeuristic(state_task)
+            state_plan = astar_search(state_task, heuristic)
+
+            return len(state_plan) - optimal_plans[goal]
 
         def calculate_score(task, landmark):
             task.goals = frozenset({landmark})
@@ -151,7 +185,7 @@ class ExtractLandmarks():
             print(f"Landmark: {landmark}, Score: {len(h)}")
             return len(h)
         
-        sorted_h = sorted(landmarkSet, key = lambda landmark: calculate_score(initialTask, landmark))
+        sorted_h = sorted(landmarkSet, key=lambda landmark: calculate_score(initialTask, landmark))
         print(f"Sorted based on score: {sorted_h}")
         return functools.reduce(toLandmark, sorted_h, (initialTask, 0))
 
@@ -159,7 +193,7 @@ class ExtractLandmarks():
     ### USEFUL FUNCTIONS ###
     ########################
 
-    def __output(self, *lines, result = None ):
+    def __output(self, *lines, result=None):
         ''' Function to make pretty outputs.
         '''
         if self.debug:
@@ -170,7 +204,7 @@ class ExtractLandmarks():
             print("-----------------\n")
 
     def temp(self, name):
-        ''' Returns an absolute directory to the 
+        ''' Returns an absolute directory to the
         '''
         return os.path.join(self.TEMP_DIR, name)
 
@@ -179,6 +213,29 @@ class ExtractLandmarks():
         Whether to have outputs.
         '''
         self.debug = debugMode
+
+    def generate_optimal(self):
+        optimal_paths = []
+        goal_task = _ground(_parse(self.domainfile, self.temp("task0.pddl")))
+        for goal in self.goals:
+            if len(goal.split('(')) >= 2:
+                goals = goal.split('(')
+                goals = goals[2:]
+                goals = ["(" + g[:-1] for g in goals]
+                goal_set = frozenset(goals)
+            else:
+                goal_set = frozenset({goal})
+            goal_task.goals = goal_set
+            heuristic = LandmarkHeuristic(goal_task)
+            goal_plan = astar_search(goal_task, heuristic)
+            optimal_paths.append(len(goal_plan))
+            print(f"Calculated length: {len(goal_plan)}")
+
+        return optimal_paths
+
+
+
+
 
     ##################################################
     ### UNUSED STUFF WHICH MIGHT BE HANDY LATER ON ###
