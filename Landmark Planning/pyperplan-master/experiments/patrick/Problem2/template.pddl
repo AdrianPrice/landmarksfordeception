@@ -15,5 +15,5 @@
         (at T loc2) (at P arp2)
     )
 
-    (:goal (and (at pkg2 loc1) (at pkg1 arp1) (at pkg4 loc2) (at pkg3 loc1)))
+    (:goal <HYPOTHESIS>)
 )

@@ -45,6 +45,7 @@ class ExtractLandmarks():
             raise TypeError("Incorrect number of arguments.")
         self.optimal_plans = self.generate_optimal() #Remove to improve performance
 
+
     def __unpackFiles(self, domaindir, hypsdir, realhypdir, templatedir):
         '''
         Loads the necessary resources into class variables. This function is called when
@@ -102,7 +103,7 @@ class ExtractLandmarks():
 
         def pathToGoal(acc, goal):
             ''' Given a task and a landmark, calculate the number of steps to achieve this landmark
-            and calculate the end state after traversing the path.
+            and calculate the end state after traversing the path. Deception keeps track of whether FTP and LDP have been reached in form of (BOOLEAN,BOOLEAN)
             '''
             task, steps = acc
             print(f"# Finding path to {goal}")
@@ -119,8 +120,12 @@ class ExtractLandmarks():
                 task.initial_state = op.apply(task.initial_state)
             assert task.initial_state == actual  # Making sure the final state is correct
 
-            print(f"Current step is truthful: {self.is_truthful(task)}")
-            return task, steps
+            #Measuring deception
+            if self.is_truthful(task): # Need to mess with reducing to store previous deceptive points
+                print("Truthful point")
+            else:
+                print("Deceptive point")
+            return task, steps,
 
         for approach in APPROACHES:
             self.__output(f"##### Approach: {approach} #####")
@@ -128,8 +133,8 @@ class ExtractLandmarks():
             dom = parser.parse_domain()
             problem = parser.parse_problem(dom)
             initialTask = grounding.ground(problem)
-
             orderedPath = approach(initialTask)
+
             task, steps = functools.reduce(pathToGoal, orderedPath, (initialTask, 0))
             calc = self.parse_goal(self.goals[self.realGoalIndex]) 
             assert calc.issubset(task.initial_state)  # check that the goal is indeed reached
@@ -328,6 +333,7 @@ class ExtractLandmarks():
 if __name__ == "__main__":
     DIR = os.path.dirname(__file__)
     # Defining constants
+    #EXPERIMENTS_DIR = os.path.join(DIR, 'experiments/patrick')
     EXPERIMENTS_DIR = os.path.join(DIR, 'experiments/raw')
     EXPERIMENTS_TAR_DIR = os.path.join(DIR, 'experiments/tar')
     RESULTS_DIR = os.path.join(DIR, 'results')
