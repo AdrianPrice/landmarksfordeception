@@ -43,6 +43,7 @@ class ExtractLandmarks():
             self.__unpackFiles(*args)
         else:
             raise TypeError("Incorrect number of arguments.")
+        self.optimal_plans = self.generate_optimal() #Remove to improve performance
 
     def __unpackFiles(self, domaindir, hypsdir, realhypdir, templatedir):
         '''
@@ -98,6 +99,7 @@ class ExtractLandmarks():
     ############################################
     def testApproaches(self):
         APPROACHES = [self.approach1, self.approach2, self.approach3]
+
         def pathToGoal(acc, goal):
             ''' Given a task and a landmark, calculate the number of steps to achieve this landmark
             and calculate the end state after traversing the path.
@@ -117,9 +119,8 @@ class ExtractLandmarks():
                 task.initial_state = op.apply(task.initial_state)
             assert task.initial_state == actual  # Making sure the final state is correct
 
-            #print(f"Distance from goal {1}: {cost_dif(initialTask, 1, task)}")
-            #print(f"Distance from goal {3}: {cost_dif(initialTask, 3, task)}")
-            return (task, steps)
+            print(f"Current step is truthful: {self.is_truthful(task)}")
+            return task, steps
 
         for approach in APPROACHES:
             self.__output(f"##### Approach: {approach} #####")
@@ -142,7 +143,6 @@ class ExtractLandmarks():
         Method for ordering landmarks:
             - This goal's landmarks are ordered based on similiarity to the initial state.
         ''' 
-        #optimal_plans = self.generate_optimal()
         def ordering_score(landmark):
             ''' Order landmarks based on similiarity to the initial task '''
             initialTask.goals = landmark
@@ -163,31 +163,7 @@ class ExtractLandmarks():
             "# The intersection with the largest number of landmarks",
             *[f"{i}: {a} " for i, a in enumerate(landmarkSet)])
 
-        def cost_dif(goal, state_task):
-            '''
-            Calculates the cost difference at any state from a goal. Defined in Masters work, means that the difference
-            between state and goal can be calculated without relying on previous observations. Formula used is
-            costdif(s, g, n) = optc(n, g) - optc(s, g) where optc(state, goal) is the cost of the optimal path from
-            state to goal, s = start state, g = goal, n = current state
 
-            @param goal:  Integer specifying goal from self.goals list
-            @param state_task: Task instance for current state
-            @return: integer representation of difference in length between path to state and path to goal.
-            '''
-            goal_string = self.goals[goal]
-            if len(goal_string.split('(')) >= 2:
-                goals = goal_string.split('(')
-                goals = goals[2:]
-                goals = ["(" + g[:-1] for g in goals]
-                goal_set = frozenset(goals)
-            else:
-                goal_set = frozenset({goal_string})
-
-            state_task.goals = goal_set
-            heuristic = LmCutHeuristic(state_task)
-            state_plan = astar_search(state_task, heuristic)
-
-            return len(state_plan) - optimal_plans[goal]
 
         # LANDMARK ORDERING
         print(f"# Sorting based on score")
@@ -228,6 +204,7 @@ class ExtractLandmarks():
     ########################
     ### USEFUL FUNCTIONS ###
     ########################
+
     def __output(self, *lines, result=None):
         ''' Function to make pretty outputs.
         '''
@@ -255,27 +232,48 @@ class ExtractLandmarks():
 
     def parse_goal(self, goal):
         parsedgoals = re.findall('\([A-Za-z0-9 ]*\)', goal)
-        return frozenset(parsedgoals)   
-        '''
-        if len(goal.split('(')) >= 2:
-            goals = goal.split('(')
-            goals = goals[2:]
-            goals = ["(" + g[:-1] for g in goals]
-            return frozenset(goals)
-        else:
-            return frozenset({goal})
-        '''
+        return frozenset(parsedgoals)
+
     def generate_optimal(self):
         optimal_paths = []
         goal_task = _ground(_parse(self.domainFile, self.tempLoc("task0.pddl")))
         for goal in self.goals:
-            goal_set = self.parse_goal(goal)
-            goal_task.goals = goal_set
-            heuristic = LandmarkHeuristic(goal_task)
+            print(f"Calculating...")
+            goal_task.goals = self.parse_goal(goal)
+            heuristic = LmCutHeuristic(goal_task)
             goal_plan = astar_search(goal_task, heuristic)
             optimal_paths.append(len(goal_plan))
             print(f"Calculated length: {len(goal_plan)}")
         return optimal_paths
+
+    def cost_dif(self, goal, state_task):
+        '''
+        Calculates the cost difference at any state from a goal. Defined in Masters work, means that the difference
+        between state and goal can be calculated without relying on previous observations. Formula used is
+        costdif(s, g, n) = optc(n, g) - optc(s, g) where optc(state, goal) is the cost of the optimal path from
+        state to goal, s = start state, g = goal, n = current state
+
+        @param goal:  Integer specifying goal from self.goals list
+        @param state_task: Task instance for current state
+        @return: integer representation of difference in length between path to state and path to goal.
+        '''
+
+        state_task.goals = self.parse_goal(self.goals[goal])
+        heuristic = LmCutHeuristic(state_task)
+        state_plan = astar_search(state_task, heuristic)
+
+        return len(state_plan) - self.optimal_plans[goal]
+
+    def is_truthful(self, state_task):
+        true_cost_diff = self.cost_dif(self.realGoalIndex, state_task)
+        for i in range(len(self.goals)):
+            if i == self.realGoalIndex:
+                pass
+            else:
+                if true_cost_diff < self.cost_dif(i, state_task):
+                    return True
+        return False
+
 
     ##################################################
     ### UNUSED STUFF WHICH MIGHT BE HANDY LATER ON ###
@@ -343,9 +341,9 @@ if __name__ == "__main__":
             hypsdir = f"{EXPERIMENTS_DIR}/{dname}/hyps.dat"
             realhypdir = f"{EXPERIMENTS_DIR}/{dname}/real_hyp.dat"
             templatedir = f"{EXPERIMENTS_DIR}/{dname}/template.pddl"
-            sys.stdout = open(os.path.join(OUTPUT_DIR, f"{dname}result.txt"), 'w+')
+            #sys.stdout = open(os.path.join(OUTPUT_DIR, f"{dname}result.txt"), 'w+')
             extraction = ExtractLandmarks(domaindir, hypsdir, realhypdir, templatedir, debug=True)
-            landmarkslst = extraction.testApproaches()
+            extraction.testApproaches()
 
     # For TAR files
     '''
