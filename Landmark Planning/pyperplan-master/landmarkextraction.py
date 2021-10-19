@@ -126,7 +126,7 @@ class ExtractLandmarks():
 
         for approach in APPROACHES:
             self.__output(f"##### Approach: {approach} #####")
-            parser = Parser(self.domainFile, self.tempLoc("task99.pddl"))
+            parser = Parser(self.domainFile, self.tempLoc("task0.pddl"))
             dom = parser.parse_domain()
             problem = parser.parse_problem(dom)
             initialTask = grounding.ground(problem)
@@ -136,8 +136,9 @@ class ExtractLandmarks():
             calc = self.parse_goal(self.goals[self.realGoalIndex]) 
             assert calc.issubset(task.initial_state)  # check that the goal is indeed reached
             print(f"FINAL RESULT: {steps} steps taken to reach final goal.")
-            print(f"Truthful points: {deception_array}")
-
+            deceptive_stats = self.calc_deceptive_stats(deception_array)
+            print(f"Density of deception: {deceptive_stats[0]}")
+            print(f"Extent of deception: {deceptive_stats[1]}")
     def approach1(self, initialTask):
         ''' 
         Method for picking landmarks:
@@ -281,6 +282,16 @@ class ExtractLandmarks():
                     truthful = True
         plan_completion = self.optimal_plans[self.realGoalIndex] - opt_state_to_goal
         return truthful, plan_completion
+
+    def calc_deceptive_stats(self, deception_array):
+        truths = 0
+        LDP_path_comp = 0
+        for state in deception_array:
+            if state[0]:
+                truths += 1
+            else:
+                LDP_path_comp = state[1]
+        return 1/truths, LDP_path_comp
 
 
     ##################################################
