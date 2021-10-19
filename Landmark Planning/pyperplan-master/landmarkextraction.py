@@ -105,7 +105,7 @@ class ExtractLandmarks():
             ''' Given a task and a landmark, calculate the number of steps to achieve this landmark
             and calculate the end state after traversing the path. Deception keeps track of whether FTP and LDP have been reached in form of (BOOLEAN,BOOLEAN)
             '''
-            task, steps, truth_array = acc
+            task, steps, deception_array = acc
             print(f"# Finding path to {goal}")
 
             task.goals = goal
@@ -118,13 +118,11 @@ class ExtractLandmarks():
                 print(f"Current State: {task.initial_state}")
                 print(f"Applying step {steps}: {op}")
                 task.initial_state = op.apply(task.initial_state) #TODO Check deceptivity here rather than at landmarks
-                if self.is_truthful(task):  # Need to mess with reducing to store previous deceptive points
-                    truth_array.append(True)
-                else:
-                    truth_array.append(False)
+
+                deception_array.append(self.deceptive_stats(task))
             assert task.initial_state == actual  # Making sure the final state is correct
 
-            return task, steps, truth_array
+            return task, steps, deception_array
 
         for approach in APPROACHES:
             self.__output(f"##### Approach: {approach} #####")
@@ -134,11 +132,11 @@ class ExtractLandmarks():
             initialTask = grounding.ground(problem)
             orderedPath = approach(initialTask)
 
-            task, steps, truth_array = functools.reduce(pathToGoal, orderedPath, (initialTask, 0, []))
+            task, steps, deception_array = functools.reduce(pathToGoal, orderedPath, (initialTask, 0, []))
             calc = self.parse_goal(self.goals[self.realGoalIndex]) 
             assert calc.issubset(task.initial_state)  # check that the goal is indeed reached
             print(f"FINAL RESULT: {steps} steps taken to reach final goal.")
-            print(f"Truthful points: {truth_array}")
+            print(f"Truthful points: {deception_array}")
 
     def approach1(self, initialTask):
         ''' 
@@ -251,33 +249,38 @@ class ExtractLandmarks():
             print(f"Calculated length: {len(goal_plan)}")
         return optimal_paths
 
-    def cost_dif(self, goal, state_task):
+    def optc(self, goal, state_task): #TODO Refactor to output path completion as well as cost_dif
         '''
-        Calculates the cost difference at any state from a goal. Defined in Masters work, means that the difference
-        between state and goal can be calculated without relying on previous observations. Formula used is
-        costdif(s, g, n) = optc(n, g) - optc(s, g) where optc(state, goal) is the cost of the optimal path from
-        state to goal, s = start state, g = goal, n = current state
+        Calculates the optimal cost from current state to goal. Can be used to calculate cost diff and probability distributions.
 
         @param goal:  Integer specifying goal from self.goals list
         @param state_task: Task instance for current state
-        @return: integer representation of difference in length between path to state and path to goal.
+        @return: integer representation of length of path from current state to the given goal.
         '''
         original_goal = state_task.goals
         state_task.goals = self.parse_goal(self.goals[goal])
         heuristic = LmCutHeuristic(state_task)
         state_plan = astar_search(state_task, heuristic)
         state_task.goals = original_goal
-        return len(state_plan) - self.optimal_plans[goal]
+        return len(state_plan)
 
-    def is_truthful(self, state_task):
-        true_cost_diff = self.cost_dif(self.realGoalIndex, state_task)
+    def deceptive_stats(self, state_task):
+        '''
+        Calculates statistics related to deception for a certain state such as truthfulness and plan completion.
+        @param state_task: Task instance for current state
+        @return:
+        '''
+        opt_state_to_goal = self.optc(self.realGoalIndex, state_task)
+        true_cost_diff = opt_state_to_goal - self.optimal_plans[self.realGoalIndex]
+        truthful = False
         for i in range(len(self.goals)):
             if i == self.realGoalIndex:
                 pass
             else:
-                if true_cost_diff < self.cost_dif(i, state_task):
-                    return True
-        return False
+                if true_cost_diff < (self.optc(i, state_task) - self.optimal_plans[i]):
+                    truthful = True
+        plan_completion = self.optimal_plans[self.realGoalIndex] - opt_state_to_goal
+        return truthful, plan_completion
 
 
     ##################################################
