@@ -105,7 +105,7 @@ class ExtractLandmarks():
             ''' Given a task and a landmark, calculate the number of steps to achieve this landmark
             and calculate the end state after traversing the path. Deception keeps track of whether FTP and LDP have been reached in form of (BOOLEAN,BOOLEAN)
             '''
-            task, steps = acc
+            task, steps, truth_array = acc
             print(f"# Finding path to {goal}")
 
             task.goals = goal
@@ -117,15 +117,14 @@ class ExtractLandmarks():
                 steps += 1
                 print(f"Current State: {task.initial_state}")
                 print(f"Applying step {steps}: {op}")
-                task.initial_state = op.apply(task.initial_state)
+                task.initial_state = op.apply(task.initial_state) #TODO Check deceptivity here rather than at landmarks
+                if self.is_truthful(task):  # Need to mess with reducing to store previous deceptive points
+                    truth_array.append(True)
+                else:
+                    truth_array.append(False)
             assert task.initial_state == actual  # Making sure the final state is correct
 
-            #Measuring deception
-            if self.is_truthful(task): # Need to mess with reducing to store previous deceptive points
-                print("Truthful point")
-            else:
-                print("Deceptive point")
-            return task, steps,
+            return task, steps, truth_array
 
         for approach in APPROACHES:
             self.__output(f"##### Approach: {approach} #####")
@@ -135,10 +134,11 @@ class ExtractLandmarks():
             initialTask = grounding.ground(problem)
             orderedPath = approach(initialTask)
 
-            task, steps = functools.reduce(pathToGoal, orderedPath, (initialTask, 0))
+            task, steps, truth_array = functools.reduce(pathToGoal, orderedPath, (initialTask, 0, []))
             calc = self.parse_goal(self.goals[self.realGoalIndex]) 
             assert calc.issubset(task.initial_state)  # check that the goal is indeed reached
             print(f"FINAL RESULT: {steps} steps taken to reach final goal.")
+            print(f"Truthful points: {truth_array}")
 
     def approach1(self, initialTask):
         ''' 
@@ -262,11 +262,11 @@ class ExtractLandmarks():
         @param state_task: Task instance for current state
         @return: integer representation of difference in length between path to state and path to goal.
         '''
-
+        original_goal = state_task.goals
         state_task.goals = self.parse_goal(self.goals[goal])
         heuristic = LmCutHeuristic(state_task)
         state_plan = astar_search(state_task, heuristic)
-
+        state_task.goals = original_goal
         return len(state_plan) - self.optimal_plans[goal]
 
     def is_truthful(self, state_task):
@@ -333,8 +333,8 @@ class ExtractLandmarks():
 if __name__ == "__main__":
     DIR = os.path.dirname(__file__)
     # Defining constants
-    #EXPERIMENTS_DIR = os.path.join(DIR, 'experiments/patrick')
-    EXPERIMENTS_DIR = os.path.join(DIR, 'experiments/raw')
+    EXPERIMENTS_DIR = os.path.join(DIR, 'experiments/patrick')
+    #EXPERIMENTS_DIR = os.path.join(DIR, 'experiments/raw')
     EXPERIMENTS_TAR_DIR = os.path.join(DIR, 'experiments/tar')
     RESULTS_DIR = os.path.join(DIR, 'results')
     TEMP_DIR = os.path.join(DIR, 'temp')
