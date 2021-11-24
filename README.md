@@ -2,7 +2,7 @@
 - Basic implementation of intersections between landmarks of different goals in a pandas dataframe.
 - Can iterate through different planning problems and extract landmarks.
 - Toy problem in experiments/raw/Problem1
-- Final framework in ./Landmark Planning/pyperplan-master/landmarkextraction.py
+- Final framework in Landmark Planning/pyperplan-master/landmarkextraction.py
 
 ### To do:
 - Store the data somewhere.
