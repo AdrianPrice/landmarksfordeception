@@ -35,7 +35,7 @@ def _get_relaxed_task(task):
     return relaxed_task
 
 
-def get_landmarks(task):
+def get_landmarks(task, ordering=False):
     """Returns a set of landmarks.
 
     In this implementation a fact is a landmark if the goal facts cannot be
@@ -43,6 +43,7 @@ def get_landmarks(task):
     """
     task = _get_relaxed_task(task)
     landmarks = set(task.goals)
+    landmark_order = [(item, index) for index, item in enumerate(landmarks)]
     possible_landmarks = task.facts - task.goals
     for fact in possible_landmarks:
         current_state = task.initial_state
@@ -58,10 +59,11 @@ def get_landmarks(task):
                         break
             if previous_state == current_state and not current_state >= task.goals:
                 landmarks.add(fact)
+                landmark_order.append((fact, len(landmarks)))
                 break
 
             goal_reached = current_state >= task.goals
-    return landmarks
+    return (landmarks, landmark_order) if ordering else landmarks
 
 
 def compute_landmark_costs(task, landmarks):
@@ -78,7 +80,8 @@ def compute_landmark_costs(task, landmarks):
     for operator, landmarks in op_to_lm.items():
         landmarks_achieving = len(landmarks)
         for landmark in landmarks:
-            min_cost[landmark] = min(min_cost[landmark], 1 / landmarks_achieving)
+            min_cost[landmark] = min(
+                min_cost[landmark], 1 / landmarks_achieving)
     return min_cost
 
 
@@ -103,6 +106,3 @@ class LandmarkHeuristic(Heuristic):
 
         h = sum(self.costs[landmark] for landmark in unreached)
         return h
-
-
-
