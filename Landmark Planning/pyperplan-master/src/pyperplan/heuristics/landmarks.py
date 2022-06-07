@@ -31,7 +31,7 @@ def _get_relaxed_task(task):
     """
     relaxed_task = copy.deepcopy(task)
     for op in relaxed_task.operators:
-        op.del_effects = set()
+        op.del_effects = []
     return relaxed_task
 
 
@@ -42,12 +42,14 @@ def get_landmarks(task, ordering=False):
     reached without it.
     """
     task = _get_relaxed_task(task)
-    landmarks = set(task.goals)
+    landmarks = task.goals
     landmark_order = [(item, index) for index, item in enumerate(landmarks)]
-    possible_landmarks = task.facts - task.goals
+    possible_landmarks = list(
+        filter(lambda x: x not in task.goals, task.facts))
+
     for fact in possible_landmarks:
         current_state = task.initial_state
-        goal_reached = current_state >= task.goals
+        goal_reached = frozenset(current_state) >= frozenset(task.goals)
 
         while not goal_reached:
             previous_state = current_state
@@ -55,14 +57,15 @@ def get_landmarks(task, ordering=False):
             for op in task.operators:
                 if op.applicable(current_state) and fact not in op.add_effects:
                     current_state = op.apply(current_state)
-                    if current_state >= task.goals:
+                    if frozenset(current_state) >= frozenset(task.goals):
                         break
-            if previous_state == current_state and not current_state >= task.goals:
-                landmarks.add(fact)
+            if previous_state == current_state and not frozenset(current_state) >= frozenset(task.goals):
+                landmarks.append(fact)
                 landmark_order.append((fact, len(landmarks)))
                 break
 
-            goal_reached = current_state >= task.goals
+            goal_reached = frozenset(current_state) >= frozenset(task.goals)
+    # print(landmarks)
     return (landmarks, landmark_order) if ordering else landmarks
 
 
@@ -96,13 +99,19 @@ class LandmarkHeuristic(Heuristic):
         """Returns the heuristic value for "node"."""
         if node.parent is None:
             # At the beginning only the initial facts are achieved
-            node.unreached = self.landmarks - self.task.initial_state
+            node.unreached = list(filter(
+                lambda x: x not in self.task.initial_state, self.landmarks))
         else:
             # A new node reaches the facts in its add_effects
-            node.unreached = node.parent.unreached - node.action.add_effects
+            node.unreached = list(filter(
+                lambda x: x not in node.action.add_effects, node.parent.unreached))
         # We always want to keep the goal facts unreached if they are not true
         # in the current state, even if they have been reached before
-        unreached = node.unreached | (self.task.goals - node.state)
+        unreached = node.unreached
+        extra = list(filter(lambda x: x not in node.state, self.task.goals))
+        for elem in extra:
+            if elem not in unreached:
+                unreached.append(elem)
 
         h = sum(self.costs[landmark] for landmark in unreached)
         return h

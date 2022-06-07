@@ -33,7 +33,7 @@ and called recursively to construct a complete parse.
 (TypeFormula, TypeVariable, TypeConstant) = range(3)
 
 ###
-### Definitions of AST nodes
+# Definitions of AST nodes
 ###
 
 
@@ -326,13 +326,14 @@ class GoalStmt(Visitable):
 
 
 ###
-### some little helper functions
+# some little helper functions
 ###
 
 
 def parse_name(iter, father):
     if not iter.peek().is_word():
-        raise ValueError("Error %s predicate statement must contain a name!" % father)
+        raise ValueError(
+            "Error %s predicate statement must contain a name!" % father)
     return next(iter).get_word()
 
 
@@ -415,7 +416,7 @@ def _parse_type_helper(iter, type_class):
 
 
 ###
-### parser functions
+# parser functions
 ###
 
 
@@ -504,9 +505,11 @@ def _parse_types_with_error(iter, keyword, classt):
 # Constants / Objects and types can be parsed in the same way because of their
 # familiar structure.
 # Hence instantiate them with _parse_types_with_error.
-_common_types = [(":types", Type), (":objects", Object), (":constants", Object)]
+_common_types = [(":types", Type), (":objects", Object),
+                 (":constants", Object)]
 (parse_types_stmt, parse_objects_stmt, parse_constants_stmt) = map(
-    lambda tup: lambda it: _parse_types_with_error(it, tup[0], tup[1]), _common_types
+    lambda tup: lambda it: _parse_types_with_error(
+        it, tup[0], tup[1]), _common_types
 )
 
 
@@ -523,8 +526,8 @@ def _parse_domain_helper(iter, keyword):
     return DomainStmt(name)
 
 
-parse_domain_stmt = lambda it: _parse_domain_helper(it, "domain")
-parse_problem_domain_stmt = lambda it: _parse_domain_helper(it, ":domain")
+def parse_domain_stmt(it): return _parse_domain_helper(it, "domain")
+def parse_problem_domain_stmt(it): return _parse_domain_helper(it, ":domain")
 
 
 def parse_predicate(iter):
@@ -578,7 +581,8 @@ def parse_formula(iter):
         key = iter.peek().get_word()
         next(iter)
         if key[0] in reserved:
-            raise ValueError("Error: Formula must not start with reserved " "char!")
+            raise ValueError(
+                "Error: Formula must not start with reserved " "char!")
         children = parse_list_template(parse_formula, iter)
     else:
         # non nested formula
@@ -598,7 +602,8 @@ def _parse_precondition_or_effect(iter, keyword, type):
     Returns a PreconditionStmt or EffectStmt instance.
     """
     if not iter.try_match(keyword):
-        raise ValueError(f'Error: {type.__name__} must start with "{keyword}" keyword')
+        raise ValueError(
+            f'Error: {type.__name__} must start with "{keyword}" keyword')
     cond = parse_formula(next(iter))
     return type(cond)
 
@@ -681,13 +686,15 @@ def parse_domain_def(iter):
             # from this point on only actions are allowed to follow
             break
         else:
-            raise ValueError("Found unknown keyword in domain definition: " + key.name)
+            raise ValueError(
+                "Found unknown keyword in domain definition: " + key.name)
     # next parse all defined actions
     while not iter.empty():
         next_iter = next(iter)
         key = parse_keyword(next_iter.peek())
         if key.name != "action":
-            raise ValueError("Error: Found invalid keyword while parsing " "actions")
+            raise ValueError(
+                "Error: Found invalid keyword while parsing " "actions")
         action = parse_action_stmt(next_iter)
         domain.actions.append(action)
     # assert end is reached
@@ -728,7 +735,7 @@ def parse_problem_def(iter):
     probname = parse_problem_name(next(iter))
     dom = parse_problem_domain_stmt(next(iter))
     # parse all object definitions
-    objects = dict()
+    objects = []
     if iter.peek_tag() == ":objects":
         objects = parse_objects_stmt(next(iter))
     init = parse_init_stmt(next(iter))
@@ -848,7 +855,8 @@ if __name__ == "__main__":
     # additional imports here to prevent cyclic imports!
     argparser = argparse.ArgumentParser()
     argparser.add_argument(dest="domain", help="specify domain file")
-    argparser.add_argument(dest="problem", help="specify problem file", nargs="?")
+    argparser.add_argument(
+        dest="problem", help="specify problem file", nargs="?")
     options = argparser.parse_args()
     if options.domain == None:
         parser.print_usage()

@@ -165,7 +165,7 @@ class LmCutHeuristic(Heuristic):
             self.relaxed_facts[fact] = RelaxedFact(fact)
 
         for op in task.operators:
-            assert not op.name in self.relaxed_ops
+            # assert not op.name in self.relaxed_ops
             # build new relaxed operator from the task operator
             relaxed_op = RelaxedOp(op.name)
             # insert all preconditions into relaxed_op and
@@ -176,7 +176,8 @@ class LmCutHeuristic(Heuristic):
                 # --> this fact will be used for all operators with empty
                 # preconditions
                 if not self.always_true in self.relaxed_facts:
-                    self.relaxed_facts[self.always_true] = RelaxedFact(self.always_true)
+                    self.relaxed_facts[self.always_true] = RelaxedFact(
+                        self.always_true)
                 link_op_to_precondition(relaxed_op, self.always_true)
             else:
                 for fact in op.preconditions:

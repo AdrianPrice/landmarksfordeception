@@ -50,6 +50,7 @@ def ground(problem):
     Problem.domain.actions      -> operators    -> Task.operators
     Problem.domain.predicates   -> variables    -> Task.facts
     """
+
     domain = problem.domain
     actions = domain.actions.values()
     predicates = domain.predicates.values()
@@ -67,6 +68,7 @@ def ground(problem):
 
     # Create a map from types to objects
     type_map = _create_type_map(objects)
+    # print(type_map)
     if verbose_logging:
         logging.debug("Type to object map:\n%s" % type_map)
 
@@ -77,6 +79,7 @@ def ground(problem):
 
     # Ground actions
     operators = _ground_actions(actions, type_map, statics, init)
+    # print(operators)
     if verbose_logging:
         logging.debug("Operators:\n%s" % "\n".join(map(str, operators)))
 
@@ -90,12 +93,15 @@ def ground(problem):
         logging.debug("Goal:\n%s" % goals)
 
     # Collect facts from operators and include the ones from the goal
-    facts = _collect_facts(operators) | goals
+    facts = _collect_facts(operators)
+    for fact in goals:
+        if fact not in facts:
+            facts.append(fact)
     if verbose_logging:
         logging.debug("All grounded facts:\n%s" % facts)
 
     # Remove statics from initial state
-    init &= facts
+    init = list(filter(lambda a: a in facts, init))
     if verbose_logging:
         logging.debug("Initial state without statics:\n%s" % init)
 
@@ -150,10 +156,12 @@ def _relevance_analysis(operators, goals):
         op.del_effects = new_dellist
         if not new_addlist and not new_dellist:
             if verbose_logging:
-                logging.debug("Relevance analysis removed oparator %s" % op.name)
+                logging.debug(
+                    "Relevance analysis removed oparator %s" % op.name)
             del_operators.add(op)
     if debug:
-        logging.info("Relevance analysis removed %d facts" % len(debug_pruned_op))
+        logging.info("Relevance analysis removed %d facts" %
+                     len(debug_pruned_op))
     # remove completely irrelevant operators
     return [op for op in operators if not op in del_operators]
 
@@ -190,13 +198,17 @@ def _create_type_map(objects):
     of a subtype is a specialization of a specific type. We have
     to put this object into the set of the supertype, too.
     """
-    type_map = defaultdict(set)
+    # print("~~~~~")
+    # print(objects)
+    # print("~~~~~")
+    type_map = defaultdict(list)
 
     # for every type we append the corresponding object
     for object_name, object_type in objects.items():
         parent_type = object_type.parent
         while True:
-            type_map[object_type].add(object_name)
+            if object_name not in type_map[object_type]:
+                type_map[object_type].append(object_name)
             object_type, parent_type = parent_type, object_type.parent
             if parent_type is None:
                 # if object_type is None:
@@ -211,10 +223,18 @@ def _collect_facts(operators):
     Collect all facts from grounded operators (precondition, add
     effects and delete effects).
     """
-    facts = set()
+    facts_lst = []
     for op in operators:
-        facts |= op.preconditions | op.add_effects | op.del_effects
-    return facts
+        for pre in op.preconditions:
+            if pre not in facts_lst:
+                facts_lst.append(pre)
+        for add in op.add_effects:
+            if add not in facts_lst:
+                facts_lst.append(add)
+        for dele in op.del_effects:
+            if dele not in facts_lst:
+                facts_lst.append(dele)
+    return facts_lst
 
 
 def _ground_actions(actions, type_map, statics, init):
@@ -226,7 +246,8 @@ def _ground_actions(actions, type_map, statics, init):
     @param statics: Names of the static predicates
     @param init: Grounded initial state
     """
-    op_lists = [_ground_action(action, type_map, statics, init) for action in actions]
+    op_lists = [_ground_action(action, type_map, statics, init)
+                for action in actions]
     operators = list(itertools.chain(*op_lists))
     return operators
 
@@ -264,7 +285,7 @@ def _ground_action(action, type_map, statics, init):
         # List of sets of objects for this parameter
         objects = [type_map[type] for type in param_types]
         # Combine the sets into one set
-        objects = set(itertools.chain(*objects))
+        objects = list(itertools.chain(*objects))
         param_to_objects[param_name] = objects
 
     # For each parameter that is not constant,
@@ -319,7 +340,7 @@ def _create_operator(action, assignment, statics, init):
     in the ungrounded precondition, the operator won't be created.
     @param assignment: mapping from predicate name to object name
     """
-    precondition_facts = set()
+    precondition_facts = []
     for precondition in action.precondition:
         fact = _ground_atom(precondition, assignment)
         predicate_name = precondition.name
@@ -330,17 +351,21 @@ def _create_operator(action, assignment, statics, init):
                 return None
         else:
             # This precondition is not always true -> Add it
-            precondition_facts.add(fact)
+            precondition_facts.append(fact)
 
     add_effects = _ground_atoms(action.effect.addlist, assignment)
     del_effects = _ground_atoms(action.effect.dellist, assignment)
     # If the same fact is added and deleted by an operator the STRIPS formalism
     # adds it.
-    del_effects -= add_effects
+    for effect in add_effects:
+        if effect in del_effects:
+            del_effects.remove(effect)
     # If a fact is present in the precondition, we do not have to add it.
     # Note that if a fact is in the delete and in the add effects,
     # it has already been deleted in the previous step.
-    add_effects -= precondition_facts
+    for fact in precondition_facts:
+        if fact in add_effects:
+            add_effects.remove(fact)
     args = [assignment[name] for name, types in action.signature]
     name = _get_grounded_string(action.name, args)
     return Operator(name, precondition_facts, add_effects, del_effects)
@@ -368,7 +393,10 @@ def _ground_atom(atom, assignment):
 
 def _ground_atoms(atoms, assignment):
     """Return a set of the grounded representation of the atoms."""
-    return {_ground_atom(atom, assignment) for atom in atoms}
+    atoms_lst = []
+    for atom in atoms:
+        atoms_lst.append(_ground_atom(atom, assignment))
+    return atoms_lst
 
 
 def _get_fact(atom):
@@ -379,4 +407,4 @@ def _get_fact(atom):
 
 def _get_partial_state(atoms):
     """Return a set of the string representation of the grounded atoms."""
-    return frozenset(_get_fact(atom) for atom in atoms)
+    return list(_get_fact(atom) for atom in atoms)

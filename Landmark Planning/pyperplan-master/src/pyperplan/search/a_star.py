@@ -127,7 +127,7 @@ def astar_search(
                            meanings.
     """
     open = []
-    state_cost = {task.initial_state: 0}
+    state_cost = {tuple(task.initial_state): 0}
     node_tiebreaker = 0
 
     root = searchspace.make_root_node(task.initial_state)
@@ -143,13 +143,14 @@ def astar_search(
         (f, h, _tie, pop_node) = heapq.heappop(open)
         if h < besth:
             besth = h
-            logging.debug("Found new best h: %d after %d expansions" % (besth, counter))
+            logging.debug("Found new best h: %d after %d expansions" %
+                          (besth, counter))
 
         pop_state = pop_node.state
         # Only expand the node if its associated cost (g value) is the lowest
         # cost known for this state. Otherwise we already found a cheaper
         # path after creating this node and hence can disregard it.
-        if state_cost[pop_state] == pop_node.g:
+        if state_cost[tuple(pop_state)] == pop_node.g:
             expansions += 1
 
             if task.goal_reached(pop_state):
@@ -179,18 +180,21 @@ def astar_search(
                     else:
                         logging.debug("keeping operator %s" % op.name)
 
-                succ_node = searchspace.make_child_node(pop_node, op, succ_state)
+                succ_node = searchspace.make_child_node(
+                    pop_node, op, succ_state)
                 h = heuristic(succ_node)
                 if h == float("inf"):
                     # don't bother with states that can't reach the goal anyway
                     continue
-                old_succ_g = state_cost.get(succ_state, float("inf"))
+                old_succ_g = state_cost.get(
+                    tuple(succ_state), float("inf"))
                 if succ_node.g < old_succ_g:
                     # We either never saw succ_state before, or we found a
                     # cheaper path to succ_state than previously.
                     node_tiebreaker += 1
-                    heapq.heappush(open, make_open_entry(succ_node, h, node_tiebreaker))
-                    state_cost[succ_state] = succ_node.g
+                    heapq.heappush(open, make_open_entry(
+                        succ_node, h, node_tiebreaker))
+                    state_cost[tuple(succ_state)] = succ_node.g
 
         counter += 1
     logging.info("No operators left. Task unsolvable.")

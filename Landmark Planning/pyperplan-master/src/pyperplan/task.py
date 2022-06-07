@@ -42,7 +42,7 @@ class Operator:
         @return True if the operator's preconditions is a subset of the state,
                 False otherwise
         """
-        return self.preconditions <= state
+        return frozenset(self.preconditions) <= frozenset(state)
 
     def apply(self, state):
         """
@@ -59,8 +59,13 @@ class Operator:
                 operator
         """
         assert self.applicable(state)
-        assert type(state) in (frozenset, set)
-        return (state - self.del_effects) | self.add_effects
+        remove_deleltions = list(
+            filter(lambda x: x not in self.del_effects, state))
+        additions = remove_deleltions
+        for add in self.add_effects:
+            if add not in additions:
+                additions.append(add)
+        return additions
 
     def __eq__(self, other):
         return (
@@ -114,7 +119,7 @@ class Task:
 
         @return True if all the goals are reached, False otherwise
         """
-        return self.goals <= state
+        return frozenset(self.goals) <= frozenset(state)
 
     def get_successor_states(self, state):
         """

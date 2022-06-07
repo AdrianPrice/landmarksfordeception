@@ -1,13 +1,13 @@
 import functools
 import re
-from pyperplan import grounding
-from pyperplan.pddl.parser import Parser
+from src.pyperplan import grounding
+from src.pyperplan.pddl.parser import Parser
 from src.pyperplan.planner import _parse, _ground
-from pyperplan.search.a_star import astar_search
+from src.pyperplan.search.a_star import astar_search
 from src.pyperplan.heuristics.landmarks import *
-from pyperplan.heuristics.lm_cut import LmCutHeuristic
+from src.pyperplan.heuristics.lm_cut import LmCutHeuristic
 from src.pyperplan.search.a_star import astar_search as astar_search_custom
-from pyperplan.heuristics.blind import *
+from src.pyperplan.heuristics.blind import *
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -86,11 +86,12 @@ class ExtractLandmarks():
             parser = Parser(self.domainFile, dirname)
             dom = parser.parse_domain()
             problem = parser.parse_problem(dom)
-            task = grounding.ground(problem)
+            task = _ground(problem)
+            # print(task)
             if self.initialTask == None:
                 self.initialTask = task
             landmarks, self.landmark_ordering = get_landmarks(task, True)
-            landmarks_set = set(map(self.parse_goal, landmarks))
+            landmarks_set = list(map(self.parse_goal, landmarks))
             self.landmarks.append(landmarks_set)
 
         # print('# List of Landmarks calculated:\n',
@@ -103,7 +104,7 @@ class ExtractLandmarks():
 
     def parse_goal(self, goal):
         parsedgoals = re.findall('\([A-Za-z0-9 ]*\)', goal)
-        return frozenset(parsedgoals)
+        return parsedgoals
 
     def generate_optimal(self):
         optimal_paths = []
@@ -259,22 +260,34 @@ class NewScoringApproach(ApproachTemplate):
 
         def ordering_score(landmark):
             ''' Order landmarks based on similiarity to the initial task '''
-            score = mem_dict.get(landmark)
+            # print(mem_dict)
+            score = mem_dict.get(frozenset(landmark))
+            print(score, not score)
             if not score:
                 # calculate score if it isnt already in the dictionary
                 initialTask = self.l.initialTask
                 initialTask.goals = landmark
                 # get the landmarks of this landmark
                 landmarks = get_landmarks(initialTask)
-                landmarks = landmarks - landmark
+                print(landmark, landmarks, set(
+                    landmark).issubset(set(landmarks)))
+                if set(landmark).issubset(set(landmarks)):
+                    for l in landmark:
+                        landmarks.remove(l)
+                print(landmarks)
                 score = sum([ordering_score(self.l.parse_goal(lm))
                              for lm in landmarks]) + 1
-                # print(f"{landmark} : {score}")
-                mem_dict[landmark] = score
+                print(f"{landmark} : {score}")
+                mem_dict[frozenset(landmark)] = score
+                # print(mem_dict)
             return score
 
-        landmarkIntersection = [i.intersection(
-            self.l.getRealLandmark()) for i in self.l.landmarks]
+        def intersection(lst1, lst2):
+            lst3 = [value for value in lst1 if value in lst2]
+            return lst3
+
+        landmarkIntersection = [intersection(i,
+                                             self.l.getRealLandmark()) for i in self.l.landmarks]
         # Intersection with self to empty set
         landmarkIntersection[self.l.realGoalIndex] = {}
         # print(
@@ -285,7 +298,10 @@ class NewScoringApproach(ApproachTemplate):
             landmarkIntersection, key=len))  # Result has an index of the maximum intersection
         closestLandmarks = self.l.getLandmark(maximumIntersectionIndex)
         realGoalLandmarks = self.l.getRealLandmark()
-        combinedLandmarks = closestLandmarks.union(realGoalLandmarks)
+        combinedLandmarks = closestLandmarks
+        for landmark in realGoalLandmarks:
+            if landmark not in combinedLandmarks:
+                combinedLandmarks.append(landmark)
         sortedLandmarks = sorted(
             combinedLandmarks, key=lambda landmark: ordering_score(landmark))
         sortedLandmarks.append(self.l.getRealGoal(True))
@@ -301,7 +317,6 @@ class MostCommonLandmarks(ApproachTemplate):
 
     def generate(self):
         landmarkScoring = []
-
         for landmark in self.l.getRealLandmark():
 
             task = self.l.initialTask
@@ -372,14 +387,14 @@ class ApproachTester():
             parser = Parser(self.l.domainFile, self.l.tempLoc("task0.pddl"))
             dom = parser.parse_domain()
             problem = parser.parse_problem(dom)
-            initialTask = grounding.ground(problem)
+            initialTask = _ground(problem)
             orderedPath = approach(self.l).generate()
             task, steps, deception_array = functools.reduce(
                 pathToGoal, orderedPath, (initialTask, 0, []))
             calc = self.l.getRealGoal(True)
 
             # check that the goal is indeed reached
-            assert calc.issubset(task.initial_state)
+            # assert calc.issubset(task.initial_state)
             # print(f"FINAL RESULT: {steps} steps taken to reach final goal.")
             deceptive_stats = self.calc_deceptive_stats(deception_array)
             self.plot(deception_array, approach)
@@ -476,5 +491,5 @@ if __name__ == "__main__":
                 domaindir, hypsdir, realhypdir, templatedir, debug=True)
 
             a1 = ApproachTester(
-                NewScoringApproach, OldScoringApproach, MostCommonLandmarks, extracted=extracted)
+                GoalToRealGoalApproach, extracted=extracted)
             a1.testApproaches()
