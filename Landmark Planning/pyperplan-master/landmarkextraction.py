@@ -173,8 +173,12 @@ class GoalToRealGoalApproach(ApproachTemplate):
         Method for picking landmarks:
             - The goal with the most landmarks in common with the real goal is the most in common.
         '''
-        landmarkIntersection = [i.intersection(
-            self.l.getRealLandmark()) for i in self.l.landmarks]
+        def intersection(lst1, lst2):
+            lst3 = [value for value in lst1 if value in lst2]
+            return lst3
+
+        landmarkIntersection = [intersection(i,
+                                             self.l.getRealLandmark()) for i in self.l.landmarks]
         # Intersection with self to empty set
         landmarkIntersection[self.l.realGoalIndex] = {}
         # print(
@@ -221,8 +225,12 @@ class OldScoringApproach(ApproachTemplate):
             return len(landmarks)
 
         # PICKING LANDMARKS
-        landmarkIntersection = [i.intersection(
-            self.l.getRealLandmark()) for i in self.l.landmarks]
+        def intersection(lst1, lst2):
+            lst3 = [value for value in lst1 if value in lst2]
+            return lst3
+
+        landmarkIntersection = [intersection(i,
+                                             self.l.getRealLandmark()) for i in self.l.landmarks]
         # Intersection with self to empty set
         landmarkIntersection[self.l.realGoalIndex] = {}
         # print(
@@ -260,24 +268,18 @@ class NewScoringApproach(ApproachTemplate):
 
         def ordering_score(landmark):
             ''' Order landmarks based on similiarity to the initial task '''
-            # print(mem_dict)
             score = mem_dict.get(frozenset(landmark))
-            print(score, not score)
             if not score:
                 # calculate score if it isnt already in the dictionary
                 initialTask = self.l.initialTask
                 initialTask.goals = landmark
                 # get the landmarks of this landmark
                 landmarks = get_landmarks(initialTask)
-                print(landmark, landmarks, set(
-                    landmark).issubset(set(landmarks)))
                 if set(landmark).issubset(set(landmarks)):
                     for l in landmark:
                         landmarks.remove(l)
-                print(landmarks)
                 score = sum([ordering_score(self.l.parse_goal(lm))
                              for lm in landmarks]) + 1
-                print(f"{landmark} : {score}")
                 mem_dict[frozenset(landmark)] = score
                 # print(mem_dict)
             return score
@@ -491,5 +493,5 @@ if __name__ == "__main__":
                 domaindir, hypsdir, realhypdir, templatedir, debug=True)
 
             a1 = ApproachTester(
-                GoalToRealGoalApproach, extracted=extracted)
+                BaselineApproach, GoalToRealGoalApproach, OldScoringApproach, NewScoringApproach, MostCommonLandmarks, extracted=extracted)
             a1.testApproaches()
