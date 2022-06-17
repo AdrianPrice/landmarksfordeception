@@ -57,7 +57,8 @@ class Visitable:
 
     def accept(self, visitor):
         if self._visitorName == None:
-            raise ValueError("Error: visit method of uninitialized visitor " "called!")
+            raise ValueError(
+                "Error: visit method of uninitialized visitor " "called!")
         # get the appropriate method of the visitor instance
         m = getattr(visitor, self._visitorName)
         # ensure that the method is callable
@@ -395,7 +396,8 @@ class TraversePDDLDomain(PDDLVisitor):
         else:
             # If not 'and' we only allow a single predicate in precondition.
             if not formula.key in self._predicates:
-                raise SemanticError("Error: predicate in precondition is not " "in CNF")
+                raise SemanticError(
+                    "Error: predicate in precondition is not " "in CNF")
             # Call helper.
             self.add_precond(precond, formula)
         self.set_in(node, precond)
@@ -430,7 +432,8 @@ class TraversePDDLDomain(PDDLVisitor):
                 "of action" % nextPredicate.key
             )
         if nextPredicate == None:
-            raise SemanticError("Error: NoneType predicate used in effect of " "action")
+            raise SemanticError(
+                "Error: NoneType predicate used in effect of " "action")
         predDef = self._predicates[nextPredicate.key]
         signature = list()
         count = 0

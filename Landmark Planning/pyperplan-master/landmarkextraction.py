@@ -12,6 +12,7 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import math
 
 
 class ExtractLandmarks():
@@ -56,7 +57,7 @@ class ExtractLandmarks():
         Loads the necessary resources into class variables. This function is called when
         three arguments are given.
         '''
-        # print(f"##### Getting landmarks #####")
+        print(f"##### Getting landmarks #####")
         self.domainFile: str = os.path.abspath(domaindir)
         with open(hypsdir) as goalsfile:
             self.goals: list[str] = goalsfile.read().splitlines()
@@ -66,10 +67,10 @@ class ExtractLandmarks():
             self.taskTemplate: str = templatefile.read()
 
         # DEBUG
-        # print('# List of Goals parsed: #\n',
-            # *[f"{i} : {a}\n" for i, a in enumerate(self.goals)])
-        # print('# Real Goal parsed: #\n',
-            # f"{self.realGoalIndex} : {self.goals[self.realGoalIndex]}\n")
+        print('# List of Goals parsed: #\n',
+              *[f"{i} : {a}\n" for i, a in enumerate(self.goals)])
+        print('# Real Goal parsed: #\n',
+              f"{self.realGoalIndex} : {self.goals[self.realGoalIndex]}\n")
 
         self.__populate()
 
@@ -94,8 +95,8 @@ class ExtractLandmarks():
             landmarks_set = list(map(self.parse_goal, landmarks))
             self.landmarks.append(landmarks_set)
 
-        # print('# List of Landmarks calculated:\n',
-            # * [f"{i} : {self.goals[i]} : {a}\n" for i, a in enumerate(self.landmarks)])
+        print('# List of Landmarks calculated:\n',
+              * [f"{i} : {self.goals[i]} : {a}\n" for i, a in enumerate(self.landmarks)])
 
     def tempLoc(self, name):
         ''' Returns an absolute directory to the temp location.
@@ -111,13 +112,13 @@ class ExtractLandmarks():
         goal_task = _ground(
             _parse(self.domainFile, self.tempLoc("task0.pddl")))
         for goal in self.goals:
-            # print(f"Calculating OPTIMAL...")
-            # print(goal)
+            print(f"Calculating OPTIMAL...")
+            print(goal)
             goal_task.goals = self.parse_goal(goal)
             heuristic = LmCutHeuristic(goal_task)
             goal_plan = astar_search(goal_task, heuristic)
             optimal_paths.append(len(goal_plan))
-            # print(f"Calculated length: {len(goal_plan)}")
+            print(f"Calculated length: {len(goal_plan)}")
         return optimal_paths
 
     def getRealGoal(self, parse=False):
@@ -187,9 +188,9 @@ class GoalToRealGoalApproach(ApproachTemplate):
         # print(landmarkIntersection)
         landmarkSetIndex = landmarkIntersection.index(
             max(landmarkIntersection, key=len))  # Result has a list of landmarks
-        # print(
-        # "# The index of the goal with the largest number of landmarks in common",
-        # landmarkSetIndex)
+        print(
+            "# The index of the goal with the largest number of landmarks in common",
+            landmarkSetIndex)
 
         ordered_l = []
         ordered_l.append(self.l.getGoal(landmarkSetIndex, True))
@@ -220,8 +221,8 @@ class OldScoringApproach(ApproachTemplate):
             initialTask.goals = landmark
             # get the landmarks of this landmark
             landmarks = get_landmarks(initialTask)
-            # print(f"LANDMARKS:{landmark} : {landmarks}")
-            # print(f"Landmark: {landmark}, Score: {len(landmarks)}")
+            print(f"LANDMARKS:{landmark} : {landmarks}")
+            print(f"Landmark: {landmark}, Score: {len(landmarks)}")
             return len(landmarks)
 
         # PICKING LANDMARKS
@@ -233,22 +234,22 @@ class OldScoringApproach(ApproachTemplate):
                                              self.l.getRealLandmark()) for i in self.l.landmarks]
         # Intersection with self to empty set
         landmarkIntersection[self.l.realGoalIndex] = {}
-        # print(
-        # "# Intersection of goals with the real goal",
-        # *[f"{i}: {a} " if i != self.l.realGoalIndex else "" for i, a in enumerate(landmarkIntersection)])
+        print(
+            "# Intersection of goals with the real goal",
+            *[f"{i}: {a} " if i != self.l.realGoalIndex else "" for i, a in enumerate(landmarkIntersection)])
 
         # Result has a list of landmarks
         landmarkSet = max(landmarkIntersection, key=len)
-        # print(
-        # "# The intersection with the largest number of landmarks",
-        # *[f"{i}: {a} " for i, a in enumerate(landmarkSet)])
+        print(
+            "# The intersection with the largest number of landmarks",
+            *[f"{i}: {a} " for i, a in enumerate(landmarkSet)])
 
         # LANDMARK ORDERING
-        # print(f"# Sorting based on score")
-        # print(landmarkSet)
+        print(f"# Sorting based on score")
+        print(landmarkSet)
         ordered_l = sorted(
             landmarkSet, key=lambda landmark: ordering_score(landmark))
-        # print(f"Sorted based on score: {ordered_l}")
+        print(f"Sorted based on score: {ordered_l}")
         ordered_l.append(self.l.getRealGoal(True))
         return ordered_l
 
@@ -281,7 +282,7 @@ class NewScoringApproach(ApproachTemplate):
                 score = sum([ordering_score(self.l.parse_goal(lm))
                              for lm in landmarks]) + 1
                 mem_dict[frozenset(landmark)] = score
-                # print(mem_dict)
+
             return score
 
         def intersection(lst1, lst2):
@@ -292,9 +293,9 @@ class NewScoringApproach(ApproachTemplate):
                                              self.l.getRealLandmark()) for i in self.l.landmarks]
         # Intersection with self to empty set
         landmarkIntersection[self.l.realGoalIndex] = {}
-        # print(
-        # "# Intersection of goals with the real goal",
-        # *[f"{i}: {a} " if i != self.l.realGoalIndex else "" for i, a in enumerate(landmarkIntersection)])
+        print(
+            "# Intersection of goals with the real goal",
+            *[f"{i}: {a} " if i != self.l.realGoalIndex else "" for i, a in enumerate(landmarkIntersection)])
 
         maximumIntersectionIndex = landmarkIntersection.index(max(
             landmarkIntersection, key=len))  # Result has an index of the maximum intersection
@@ -365,7 +366,7 @@ class ApproachTester():
             and calculate the end state after traversing the path. Deception keeps track of whether FTP and LDP have been reached in form of (BOOLEAN,BOOLEAN)
             '''
             task, steps, deception_array = acc
-            # print(f"###### Finding path to {goal} #####")
+            print(f"###### Finding path to {goal} #####")
 
             task.goals = goal
             heuristic = LandmarkHeuristic(task)
@@ -375,8 +376,8 @@ class ApproachTester():
             # Applying these ops to the state
             for op in path:
                 steps += 1
-                # print(f"Current State: {task.initial_state}")
-                # print(f"Applying step {steps}: {op}")
+                print(f"Current State: {task.initial_state}")
+                print(f"Applying step {steps}: {op}")
                 # TODO Check deceptivity here rather than at landmarks
                 task.initial_state = op.apply(task.initial_state)
 
@@ -385,7 +386,7 @@ class ApproachTester():
             return task, steps, deception_array
 
         for approach in self.approaches:
-            # print(f"##### Approach: {approach.NAME} #####")
+            print(f"##### Approach: {approach.NAME} #####")
             parser = Parser(self.l.domainFile, self.l.tempLoc("task0.pddl"))
             dom = parser.parse_domain()
             problem = parser.parse_problem(dom)
@@ -395,18 +396,26 @@ class ApproachTester():
                 pathToGoal, orderedPath, (initialTask, 0, []))
             calc = self.l.getRealGoal(True)
 
+            rmp = self.generate_rmp()
+            deception_before_rmp = deception_array[: len(
+                deception_array) - math.ceil(rmp)]
+            deceptive_steps = len(
+                list(filter(lambda x: not x[0], deception_before_rmp)))
+            score = (len(deception_array) - self.l.optimal_plans[self.l.realGoalIndex]) / \
+                ((deceptive_steps / len(deception_before_rmp)) * 100)
+
             # check that the goal is indeed reached
             # assert calc.issubset(task.initial_state)
-            # print(f"FINAL RESULT: {steps} steps taken to reach final goal.")
+            print(f"FINAL RESULT: {steps} steps taken to reach final goal.")
             deceptive_stats = self.calc_deceptive_stats(deception_array)
-            self.plot(deception_array, approach)
-            # print(f"Density of deception: {deceptive_stats[0]}")
-            # print(f"Extent of deception: {deceptive_stats[1]}")
+            self.plot(deception_array, approach, score)
+            print(f"Density of deception: {deceptive_stats[0]}")
+            print(f"Extent of deception: {deceptive_stats[1]}")
 
-    def plot(self, deception_array, approach):
+    def plot(self, deception_array, approach, score):
         dir = "temp/"
         plt.figure(figsize=(10, 8))
-        plt.title(f"Approach Type: {approach.NAME}")
+        plt.title(f"Approach Type: {approach.NAME} \n Score: {score}")
         pathlength = self.l.optimal_plans[self.l.realGoalIndex]
         df = pd.DataFrame(deception_array, columns=[
             'deceptive', 'deceptiveness'])
@@ -440,6 +449,24 @@ class ApproachTester():
         state_task.goals = original_goal
         return len(state_plan)
 
+    # TODO Refactor to output path completion as well as cost_dif
+    def optc_for_task(self, state_task):
+        '''
+        Calculates the optimal cost from current state to goal. Can be used to calculate cost diff and probability distributions.
+
+        @param goal:  Integer specifying goal from self.goals list
+        @param state_task: Task instance for current state
+        @return: integer representation of length of path from current state to the given goal.
+        '''
+        heuristic = LmCutHeuristic(state_task)
+        state_plan = astar_search(state_task, heuristic)
+        print(state_task.initial_state, '  ->  ',
+              state_task.goals, '\n', state_plan, '\n')
+
+        if state_plan is None:
+            return math.inf
+        return len(state_plan)
+
     def deceptive_stats(self, state_task):
         '''
         Calculates statistics related to deception for a certain state such as truthfulness and plan completion.
@@ -469,6 +496,58 @@ class ApproachTester():
             else:
                 LDP_path_comp = state[1]
         return 1 / truths, LDP_path_comp
+
+    def generate_rmp(self):
+        rmp_values = []
+
+        for goal in self.l.goals:
+
+            if goal == self.l.getRealGoal():
+                continue
+
+            print(f"Calculating RMP...")
+            print(goal)
+            candidate_goal = self.l.parse_goal(goal)
+
+            start_to_real = _ground(
+                _parse(self.l.domainFile, self.l.tempLoc("task0.pddl")))
+            heuristic = LmCutHeuristic(start_to_real)
+            start_to_real_path = astar_search(start_to_real, heuristic)
+            start_to_real_cost = len(start_to_real_path)
+
+            print(f"start_to_real length: {start_to_real_cost}")
+
+            start_to_candidate = _ground(
+                _parse(self.l.domainFile, self.l.tempLoc("task0.pddl")))
+            start_to_candidate.goals = candidate_goal
+            heuristic = LmCutHeuristic(start_to_candidate)
+            start_to_candidate_path = astar_search(
+                start_to_candidate, heuristic)
+            start_to_candidate_cost = len(
+                start_to_candidate_path)
+
+            print(f"start_to_candidate_cost length: {start_to_candidate_cost}")
+
+            real_to_candidate = _ground(
+                _parse(self.l.domainFile, self.l.tempLoc("task0.pddl")))
+
+            for op in start_to_real_path:
+                real_to_candidate.initial_state = op.apply(
+                    real_to_candidate.initial_state)
+            real_to_candidate.goals = candidate_goal
+
+            heuristic = LmCutHeuristic(real_to_candidate)
+            real_to_candidate_cost = len(
+                astar_search(real_to_candidate, heuristic))
+
+            print(f"real_to_candidate_cost length: {real_to_candidate_cost}")
+
+            rmp_values.append((real_to_candidate_cost + start_to_real_cost -
+                              start_to_candidate_cost) / 2)
+
+        print(f"rmp value: {min(rmp_values)}, rmp array: {rmp_values}")
+
+        return min(rmp_values)
 
 
 if __name__ == "__main__":
