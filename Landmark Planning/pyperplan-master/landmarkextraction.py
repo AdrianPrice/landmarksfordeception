@@ -104,7 +104,9 @@ class ExtractLandmarks():
         return os.path.join(self.TEMP_DIR, name)
 
     def parse_goal(self, goal):
+        print("parsing ", goal)
         parsedgoals = re.findall('\([A-Za-z0-9 ]*\)', goal)
+        print("parsed", parsedgoals)
         return parsedgoals
 
     def generate_optimal(self):
@@ -267,23 +269,108 @@ class NewScoringApproach(ApproachTemplate):
         mem_dict = {}
         # PICKING LANDMARKS
 
-        def ordering_score(landmark):
+        def ordering_score(landmark, foundLandmarks=[]):
+            print("F", foundLandmarks)
             ''' Order landmarks based on similiarity to the initial task '''
-            score = mem_dict.get(frozenset(landmark))
+            input()
+            core = mem_dict.get(frozenset(landmark))
+            print(landmark, score)
             if not score:
                 # calculate score if it isnt already in the dictionary
                 initialTask = self.l.initialTask
                 initialTask.goals = landmark
                 # get the landmarks of this landmark
                 landmarks = get_landmarks(initialTask)
+                print(landmarks, set(landmark).issubset(set(landmarks)))
                 if set(landmark).issubset(set(landmarks)):
                     for l in landmark:
+                        print("removed ", l)
                         landmarks.remove(l)
-                score = sum([ordering_score(self.l.parse_goal(lm))
+                foundLandmarks.append(landmark)
+                print("L", landmarks)
+                for l in landmarks:
+                    # print("HI", [l], landmarks)
+                    if [l] in foundLandmarks:
+                        # print("R2", l)
+                        landmarks.remove(l)
+                print(landmarks)
+                score = sum([ordering_score(self.l.parse_goal(lm), foundLandmarks)
                              for lm in landmarks]) + 1
                 mem_dict[frozenset(landmark)] = score
-
+            print("RETURN")
             return score
+
+        def ordering_score2(landmark, combinedLandmarks, foundLandmarks=[]):
+
+            # def list_subgoals(landmark, combinedLandmarks, foundLandmarks=[]):
+            #     print(foundLandmarks)
+            #     print(landmark)
+            #     print(landmark[0] in foundLandmarks)
+            #
+            #     if landmark[0] in foundLandmarks:
+            #         return []
+            #     initialTask = self.l.initialTask
+            #     initialTask.goals = landmark
+            #     landmarks = get_landmarks(initialTask)
+            #     print(landmarks)
+            #     print("~~~~~~~~~~~~")
+            #     # input()
+            #     filteredLandmarks = list(filter(lambda l: [l] in combinedLandmarks and [
+            #         l] != landmark, landmarks))
+            #
+            #     for l in filteredLandmarks:
+            #         # print(l, filteredLandmarks)
+            #         removed = list(
+            #             filter(lambda x: x != l, filteredLandmarks))
+            #         subs = list_subgoals(
+            #             [l], combinedLandmarks, foundLandmarks + removed)
+            #         filteredLandmarks = filteredLandmarks + subs
+            #         foundLandmarks = foundLandmarks + subs
+            #     return filteredLandmarks
+            #
+            # subs = list_subgoals(landmark, combinedLandmarks)
+            # print(subs)
+            # return len(subs)
+
+            # input()
+            # print("STARTING FROM", landmark)
+            # print("~")
+            # print(combinedLandmarks)
+            # print("~")
+            # print(foundLandmarks)
+            ''' The more sub-landmarks a landmark covers then the earlier it will be executed '''
+            score = mem_dict.get(frozenset(landmark))
+
+            if landmark[0] in foundLandmarks:
+                print("ALREADY FOUND")
+                return 0
+
+            if not score:
+                mem_dict[frozenset(landmark)] = 1
+
+                ''' Calculate all sub landmarks for this landmark'''
+                initialTask = self.l.initialTask
+                initialTask.goals = landmark
+                landmarks = get_landmarks(initialTask)
+                filteredLandmarks = list(filter(lambda l: [l] in combinedLandmarks and [
+                    l] != landmark, landmarks))
+                print("GENERATED LANDMARKS:", landmarks)
+
+                ''' Check how many landmarks are contained within the combinedLandmarks list'''
+                for l in filteredLandmarks:
+                    print("DIGGING INTO ", l)
+
+                    subs = ordering_score2(
+                        [l], combinedLandmarks, foundLandmarks)
+                    foundLandmarks.append(l)
+                    print(l, "had", subs)
+                    mem_dict[frozenset(landmark)] += subs
+                print("Calculated", mem_dict.get(
+                    frozenset(landmark)), landmark)
+                return mem_dict.get(frozenset(landmark))
+            else:
+                print("Pre calculated", score, landmark)
+                return score
 
         def intersection(lst1, lst2):
             lst3 = [value for value in lst1 if value in lst2]
@@ -306,7 +393,9 @@ class NewScoringApproach(ApproachTemplate):
             if landmark not in combinedLandmarks:
                 combinedLandmarks.append(landmark)
         sortedLandmarks = sorted(
-            combinedLandmarks, key=lambda landmark: ordering_score(landmark))
+            combinedLandmarks, key=lambda landmark: ordering_score2(landmark, combinedLandmarks))
+        print(mem_dict)
+        # input()
         sortedLandmarks.append(self.l.getRealGoal(True))
         return(sortedLandmarks)
 
@@ -394,6 +483,9 @@ class ApproachTester():
             orderedPath = approach(self.l).generate()
             task, steps, deception_array = functools.reduce(
                 pathToGoal, orderedPath, (initialTask, 0, []))
+            _, _, optimal_deception_array = functools.reduce(
+                pathToGoal, [orderedPath[-1]], (_ground(problem), 0, []))
+
             calc = self.l.getRealGoal(True)
 
             rmp = self.generate_rmp()
@@ -404,18 +496,40 @@ class ApproachTester():
             score = (len(deception_array) - self.l.optimal_plans[self.l.realGoalIndex]) / \
                 ((deceptive_steps / len(deception_before_rmp)) * 100)
 
+            deceptivePercent = (len(deception_array) - rmp) / \
+                (self.l.optimal_plans[self.l.realGoalIndex] - rmp)
+
+            truthfulSteps = len(deception_array) - deceptive_steps
+            deceptiveness = 1 - (truthfulSteps / len(deception_array))
+
+            optimal_deception_before_rmp = optimal_deception_array[: len(
+                optimal_deception_array) - math.ceil(rmp)]
+            optimal_deceptive_steps = len(
+                list(filter(lambda x: not x[0], optimal_deception_before_rmp)))
+
+            optimalTruthfulSteps = len(
+                optimal_deception_array) - optimal_deceptive_steps
+            optimalDeceptiveness = 1 - \
+                (optimalTruthfulSteps / len(optimal_deception_array))
+
+            deceptiveness = (1 -
+                             (truthfulSteps / len(deception_array))) / optimalDeceptiveness
+
+            combined = deceptivePercent / deceptiveness
+            scores = [deceptivePercent, deceptiveness, combined]
+
             # check that the goal is indeed reached
             # assert calc.issubset(task.initial_state)
             print(f"FINAL RESULT: {steps} steps taken to reach final goal.")
             deceptive_stats = self.calc_deceptive_stats(deception_array)
-            self.plot(deception_array, approach, score)
+            self.plot(deception_array, approach, scores)
             print(f"Density of deception: {deceptive_stats[0]}")
             print(f"Extent of deception: {deceptive_stats[1]}")
 
-    def plot(self, deception_array, approach, score):
+    def plot(self, deception_array, approach, scores):
         dir = "temp/"
         plt.figure(figsize=(10, 8))
-        plt.title(f"Approach Type: {approach.NAME} \n Score: {score}")
+        plt.title(f"Approach Type: {approach.NAME} \n Scores: {scores}")
         pathlength = self.l.optimal_plans[self.l.realGoalIndex]
         df = pd.DataFrame(deception_array, columns=[
             'deceptive', 'deceptiveness'])
@@ -571,6 +685,6 @@ if __name__ == "__main__":
             extracted = ExtractLandmarks(
                 domaindir, hypsdir, realhypdir, templatedir, debug=True)
 
-            a1 = ApproachTester(
-                BaselineApproach, GoalToRealGoalApproach, OldScoringApproach, NewScoringApproach, MostCommonLandmarks, extracted=extracted)
+            a1 = ApproachTester(BaselineApproach, GoalToRealGoalApproach, OldScoringApproach,
+                                NewScoringApproach, MostCommonLandmarks, extracted=extracted)
             a1.testApproaches()
